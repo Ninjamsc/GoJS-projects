@@ -797,10 +797,16 @@
         'undoManager.isEnabled': true,
         scrollMode: go.ScrollMode.Infinite,
 
-        // don't allow modifying the diagram
+        // Разрешаем создание и удаление связей
         allowClipboard: false,
-        allowDelete: false,
-        allowLink: false,
+        allowDelete: true, // Разрешаем удаление
+        allowLink: true, // Разрешаем создание связей
+        allowRelink: true, // Разрешаем переподключение связей
+        
+        // Настройки для LinkingTool
+        'linkingTool.isEnabled': true,
+        'linkingTool.portGravity': 20,
+        'relinkingTool.isEnabled': true,
 
         layout: new go.TreeLayout({
           nodeSpacing: 15,
@@ -888,7 +894,15 @@
 
       diagram.nodeTemplate = new go.Node('Auto', {
         selectionAdorned: false,
-        shadowOffset: new go.Point(0, 0)
+        shadowOffset: new go.Point(0, 0),
+        // Разрешаем создавать связи от этой ноды
+        fromLinkable: true,
+        fromLinkableSelfNode: false,
+        fromLinkableDuplicates: true,
+        // Разрешаем создавать связи к этой ноде
+        toLinkable: true,
+        toLinkableSelfNode: false,
+        toLinkableDuplicates: true
       })
         .theme('shadowColor', 'textColor')
         .bindModel('shadowBlur')
@@ -975,23 +989,35 @@
 
       diagram.linkTemplate = new go.Link({
         routing: go.Routing.AvoidsNodes,
-        // corner: Infinity,
         corner: 4,
         curve: go.Curve.JumpGap,
         reshapable: false,
         resegmentable: false,
-        relinkableFrom: false,
-        relinkableTo: false,
+        // Разрешаем переподключение связей
+        relinkableFrom: true,
+        relinkableTo: true,
         toShortLength: 0,
-        fromShortLength: 2
+        fromShortLength: 2,
+        // Разрешаем выбор и удаление связей
+        selectable: true,
+        deletable: true
       }).add(
         new go.Shape({
           stroke: 'lightgray',
           strokeWidth: 1.5
-        }).theme('stroke', 'linkStroke'),
+        })
+          .theme('stroke', 'linkStroke')
+          .bindObject('stroke', 'isSelected', (sel) => sel ? 'red' : null),
         new go.Shape({
           fill: 'lightgray',
           fromArrow: 'Triangle',
+          stroke: null,
+          strokeWidth: 0
+        }).theme('fill', 'linkStroke'),
+        // Добавляем стрелку на конец связи для указания направления
+        new go.Shape({
+          fill: 'lightgray',
+          toArrow: 'Standard',
           stroke: null,
           strokeWidth: 0
         }).theme('fill', 'linkStroke')
@@ -1065,6 +1091,34 @@
         closeModal = (newPairList: PairList) => {
           dataManager.updateData(newPairList, keys, 'modal');
         };
+      });
+
+      // Обработчик создания новых связей пользователем
+      diagram.addDiagramListener('LinkDrawn', e => {
+        const link = e.subject;
+        if (!(link instanceof go.Link)) return;
+        
+        console.log('Новая связь создана:', {
+          from: link.fromNode?.data?.label,
+          to: link.toNode?.data?.label,
+          fromKey: link.fromNode?.key,
+          toKey: link.toNode?.key
+        });
+        
+        // Здесь можно добавить логику сохранения связи в dataManager, если нужно
+      });
+
+      // Обработчик удаления связей
+      diagram.addDiagramListener('SelectionDeleted', e => {
+        e.subject.each((part: go.Part) => {
+          if (part instanceof go.Link) {
+            console.log('Связь удалена:', {
+              from: part.data?.from,
+              to: part.data?.to
+            });
+            // Здесь можно добавить логику обновления dataManager, если нужно
+          }
+        });
       });
 
       dataUnsub = dataManager.subscribe((pairs, keys) => {
