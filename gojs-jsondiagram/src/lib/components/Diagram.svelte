@@ -228,6 +228,8 @@
       addLink(port, node);
     } else {
       root = node;
+      // Hide the root node so it doesn't appear in the diagram
+      node.visible = false;
     }
 
     linkedProps.forEach((entry, idx) => {
@@ -933,7 +935,7 @@
                   return `OKLCH(${LC} ${avg(data.hueRange)})`;
                 })
                 .bind('text', '', data => {
-                  return data.isArray ? `[${data.label}]` : `{${data.label}}`;
+                  return data.label;
                 })
             ),
             // body
