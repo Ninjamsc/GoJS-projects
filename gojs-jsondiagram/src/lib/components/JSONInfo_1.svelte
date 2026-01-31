@@ -383,16 +383,8 @@
 
   dataUnsub = dataManager.subscribe((pairs, keys, reason) => {
     if (!editor || reason === REASON) return;
-    
-    // Не обновляем редактор если изменение пришло от создания/удаления связей
-    if (reason === 'link-created' || reason === 'link-deleted') {
-      // Просто обновляем JSON без сброса курсора
-      const json = dataManager.toJSON();
-      editor.setValue(json);
-      return;
-    }
-    
     const json = dataManager.toJSON();
+
     editor.setValue(json);
 
     // clear selection when dataManager is source of change, this happens when a file is loaded

@@ -191,9 +191,9 @@
     const linkedProps: PairLike[] = []; // list of props that are ports
 
     pairList.forEach(pair => {
-      // ВАЖНО: полностью игнорируем поле nodeLinks - оно не должно создавать ноду или порт
+      // Игнорируем поле nodeLinks - оно не должно создавать ноду
       if (pair.key === 'nodeLinks') {
-        return; // пропускаем эту итерацию полностью
+        return;
       }
       
       // create a much simpler object for model data. Actual Pairs maintain a relation with the
@@ -238,9 +238,6 @@
     }
 
     linkedProps.forEach((entry, idx) => {
-      // Дополнительная защита: пропускаем nodeLinks
-      if (entry.key === 'nodeLinks') return;
-      
       const subPort = node.findPort(entry.key + '');
       if (!subPort) throw new Error(`Could not find port after creation: ${entry.key}`);
 
@@ -866,8 +863,6 @@
         toLinkable: false
       })
         .bind('portId', '', (data: Pair) => {
-          // ВАЖНО: nodeLinks не должен быть портом
-          if (data.key === 'nodeLinks') return null;
           if (data.value !== null && typeof data.value === 'object') return data.key + '';
           else return null;
         })
@@ -1035,27 +1030,23 @@
         // ВАЖНО: связи должны оставаться при движении нод
         adjusting: go.LinkAdjusting.Stretch
       }).add(
-        // Линия связи - приглушенный фиолетовый, при выборе - ярко-фиолетовый
+        // Линия связи - невыбранная приглушенная, выбранная - яркая
         new go.Shape({
-          strokeWidth: 1.8
+          strokeWidth: 1.8,
+          stroke: '#9B7FC9' // приглушенный фиолетовый
         })
-          .bind('stroke', 'isSelected', (sel) => 
-            sel ? '#A855F7' : '#9B7FC9' // ярко-фиолетовый : приглушенный
-          )
           .bindObject('stroke', 'isSelected', (sel) => 
-            sel ? '#A855F7' : '#9B7FC9' // ярко-фиолетовый : приглушенный
+            sel ? '#A855F7' : '#9B7FC9' // ярко-фиолетовый при выборе
           ),
         // Стрелка в конце - того же цвета что и линия
         new go.Shape({
           toArrow: 'Standard',
+          fill: '#9B7FC9', // приглушенный фиолетовый
           stroke: null,
           scale: 1.0
         })
-          .bind('fill', 'isSelected', (sel) => 
-            sel ? '#A855F7' : '#9B7FC9' // ярко-фиолетовый : приглушенный
-          )
           .bindObject('fill', 'isSelected', (sel) => 
-            sel ? '#A855F7' : '#9B7FC9' // ярко-фиолетовый : приглушенный
+            sel ? '#A855F7' : '#9B7FC9' // ярко-фиолетовый при выборе
           )
       );
 

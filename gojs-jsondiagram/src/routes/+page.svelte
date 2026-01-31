@@ -1,6 +1,6 @@
 <script lang="ts">
-  import Diagram from '$lib/components/Diagram.svelte';
-  import JSONInfo from '$lib/components/JSONInfo.svelte';
+  import Diagram from '$lib/components/Diagram_1.svelte';
+  import JSONInfo from '$lib/components/JSONInfo_1.svelte';
   import TopMenuBar from '$lib/components/TopMenuBar.svelte';
   import ObjectModal from '$lib/components/ObjectModal.svelte';
   import { DataManager } from '$lib/dataManager.svelte';

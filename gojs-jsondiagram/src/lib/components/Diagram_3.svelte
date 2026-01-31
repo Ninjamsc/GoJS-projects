@@ -191,11 +191,6 @@
     const linkedProps: PairLike[] = []; // list of props that are ports
 
     pairList.forEach(pair => {
-      // ВАЖНО: полностью игнорируем поле nodeLinks - оно не должно создавать ноду или порт
-      if (pair.key === 'nodeLinks') {
-        return; // пропускаем эту итерацию полностью
-      }
-      
       // create a much simpler object for model data. Actual Pairs maintain a relation with the
       // parent list that we don't want here
       const p = {
@@ -238,9 +233,6 @@
     }
 
     linkedProps.forEach((entry, idx) => {
-      // Дополнительная защита: пропускаем nodeLinks
-      if (entry.key === 'nodeLinks') return;
-      
       const subPort = node.findPort(entry.key + '');
       if (!subPort) throw new Error(`Could not find port after creation: ${entry.key}`);
 
@@ -670,24 +662,6 @@
 
       // dataManager.data will not be an up to date after the first build
       traverseObject(newPairs ?? dataManager.data);
-      
-      // Восстанавливаем пользовательские связи из nodeLinks
-      const dataObj = dataManager.toObject() as any;
-      if (dataObj.nodeLinks && Array.isArray(dataObj.nodeLinks)) {
-        dataObj.nodeLinks.forEach((linkData: any) => {
-          if (linkData.from && linkData.to) {
-            const fromNode = diagram.findNodeForKey(linkData.from);
-            const toNode = diagram.findNodeForKey(linkData.to);
-            
-            if (fromNode && toNode) {
-              (diagram.model as go.GraphLinksModel).addLinkData({
-                from: linkData.from,
-                to: linkData.to
-              });
-            }
-          }
-        });
-      }
     }
   }
 
@@ -866,8 +840,6 @@
         toLinkable: false
       })
         .bind('portId', '', (data: Pair) => {
-          // ВАЖНО: nodeLinks не должен быть портом
-          if (data.key === 'nodeLinks') return null;
           if (data.value !== null && typeof data.value === 'object') return data.key + '';
           else return null;
         })
@@ -1035,28 +1007,20 @@
         // ВАЖНО: связи должны оставаться при движении нод
         adjusting: go.LinkAdjusting.Stretch
       }).add(
-        // Линия связи - приглушенный фиолетовый, при выборе - ярко-фиолетовый
+        // Линия связи - всегда видна, темно-фиолетовая
         new go.Shape({
-          strokeWidth: 1.8
+          strokeWidth: 1.8,
+          stroke: '#6B46C1' // темно-фиолетовый цвет
         })
-          .bind('stroke', 'isSelected', (sel) => 
-            sel ? '#A855F7' : '#9B7FC9' // ярко-фиолетовый : приглушенный
-          )
-          .bindObject('stroke', 'isSelected', (sel) => 
-            sel ? '#A855F7' : '#9B7FC9' // ярко-фиолетовый : приглушенный
-          ),
-        // Стрелка в конце - того же цвета что и линия
+          .bindObject('stroke', 'isSelected', (sel) => sel ? '#8B5CF6' : '#6B46C1'), // светлее при выборе
+        // Стрелка в конце (показывает направление) - того же цвета
         new go.Shape({
           toArrow: 'Standard',
+          fill: '#6B46C1', // темно-фиолетовый
           stroke: null,
           scale: 1.0
         })
-          .bind('fill', 'isSelected', (sel) => 
-            sel ? '#A855F7' : '#9B7FC9' // ярко-фиолетовый : приглушенный
-          )
-          .bindObject('fill', 'isSelected', (sel) => 
-            sel ? '#A855F7' : '#9B7FC9' // ярко-фиолетовый : приглушенный
-          )
+          .bindObject('fill', 'isSelected', (sel) => sel ? '#8B5CF6' : '#6B46C1')
       );
 
       diagram.themeManager.readsCssVariables = true;
@@ -1134,75 +1098,27 @@
         const link = e.subject;
         if (!(link instanceof go.Link)) return;
         
-        const fromNode = link.fromNode;
-        const toNode = link.toNode;
-        
-        if (!fromNode || !toNode) return;
-        
         console.log('Новая связь создана:', {
-          from: fromNode.data?.label,
-          to: toNode.data?.label,
-          fromKey: fromNode.key,
-          toKey: toNode.key
+          from: link.fromNode?.data?.label,
+          to: link.toNode?.data?.label,
+          fromKey: link.fromNode?.key,
+          toKey: link.toNode?.key
         });
         
-        // Получаем текущий JSON объект
-        const currentData = dataManager.toObject() as any;
-        
-        // Создаем массив связей если его еще нет
-        if (!currentData.nodeLinks) {
-          currentData.nodeLinks = [];
-        }
-        
-        // Добавляем новую связь
-        currentData.nodeLinks.push({
-          from: fromNode.key,
-          to: toNode.key,
-          fromLabel: fromNode.data?.label,
-          toLabel: toNode.data?.label
-        });
-        
-        // Обновляем dataManager
-        dataManager.updateDataFromObject(currentData, undefined, 'link-created');
+        // Здесь можно добавить логику сохранения связи в dataManager, если нужно
       });
 
       // Обработчик удаления связей
       diagram.addDiagramListener('SelectionDeleted', e => {
-        const deletedLinks: any[] = [];
-        
         e.subject.each((part: go.Part) => {
           if (part instanceof go.Link) {
             console.log('Связь удалена:', {
               from: part.data?.from,
               to: part.data?.to
             });
-            
-            deletedLinks.push({
-              from: part.data?.from,
-              to: part.data?.to
-            });
+            // Здесь можно добавить логику обновления dataManager, если нужно
           }
         });
-        
-        if (deletedLinks.length > 0) {
-          // Получаем текущий JSON объект
-          const currentData = dataManager.toObject() as any;
-          
-          if (currentData.nodeLinks) {
-            // Удаляем связи из массива
-            currentData.nodeLinks = currentData.nodeLinks.filter((link: any) => {
-              return !deletedLinks.some(dl => dl.from === link.from && dl.to === link.to);
-            });
-            
-            // Если массив связей пустой, удаляем его
-            if (currentData.nodeLinks.length === 0) {
-              delete currentData.nodeLinks;
-            }
-            
-            // Обновляем dataManager
-            dataManager.updateDataFromObject(currentData, undefined, 'link-deleted');
-          }
-        }
       });
 
       dataUnsub = dataManager.subscribe((pairs, keys) => {

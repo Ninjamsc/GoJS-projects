@@ -214,7 +214,7 @@
     href="https://gojs.net/latest/"
     target="_blank"
   >
-    <h2 class="text-sm text-nowrap">Made with GoJS</h2>
+    <h2 class="text-sm text-nowrap">Made by Nujen_arch</h2>
   </a>
 </div>
 

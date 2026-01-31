@@ -191,11 +191,6 @@
     const linkedProps: PairLike[] = []; // list of props that are ports
 
     pairList.forEach(pair => {
-      // ВАЖНО: полностью игнорируем поле nodeLinks - оно не должно создавать ноду или порт
-      if (pair.key === 'nodeLinks') {
-        return; // пропускаем эту итерацию полностью
-      }
-      
       // create a much simpler object for model data. Actual Pairs maintain a relation with the
       // parent list that we don't want here
       const p = {
@@ -238,9 +233,6 @@
     }
 
     linkedProps.forEach((entry, idx) => {
-      // Дополнительная защита: пропускаем nodeLinks
-      if (entry.key === 'nodeLinks') return;
-      
       const subPort = node.findPort(entry.key + '');
       if (!subPort) throw new Error(`Could not find port after creation: ${entry.key}`);
 
@@ -670,24 +662,6 @@
 
       // dataManager.data will not be an up to date after the first build
       traverseObject(newPairs ?? dataManager.data);
-      
-      // Восстанавливаем пользовательские связи из nodeLinks
-      const dataObj = dataManager.toObject() as any;
-      if (dataObj.nodeLinks && Array.isArray(dataObj.nodeLinks)) {
-        dataObj.nodeLinks.forEach((linkData: any) => {
-          if (linkData.from && linkData.to) {
-            const fromNode = diagram.findNodeForKey(linkData.from);
-            const toNode = diagram.findNodeForKey(linkData.to);
-            
-            if (fromNode && toNode) {
-              (diagram.model as go.GraphLinksModel).addLinkData({
-                from: linkData.from,
-                to: linkData.to
-              });
-            }
-          }
-        });
-      }
     }
   }
 
@@ -826,7 +800,6 @@
         // Разрешаем создание и удаление связей
         allowClipboard: false,
         allowDelete: true, // Разрешаем удаление
-        allowMove: true, // Разрешаем перемещение нод
         allowLink: true, // Разрешаем создание связей
         allowRelink: true, // Разрешаем переподключение связей
         
@@ -866,8 +839,6 @@
         toLinkable: false
       })
         .bind('portId', '', (data: Pair) => {
-          // ВАЖНО: nodeLinks не должен быть портом
-          if (data.key === 'nodeLinks') return null;
           if (data.value !== null && typeof data.value === 'object') return data.key + '';
           else return null;
         })
@@ -924,8 +895,6 @@
       diagram.nodeTemplate = new go.Node('Auto', {
         selectionAdorned: false,
         shadowOffset: new go.Point(0, 0),
-        // Разрешаем перемещение нод
-        movable: true,
         // Разрешаем создавать связи от этой ноды
         fromLinkable: true,
         fromLinkableSelfNode: false,
@@ -1031,32 +1000,27 @@
         fromShortLength: 2,
         // Разрешаем выбор и удаление связей
         selectable: true,
-        deletable: true,
-        // ВАЖНО: связи должны оставаться при движении нод
-        adjusting: go.LinkAdjusting.Stretch
+        deletable: true
       }).add(
-        // Линия связи - приглушенный фиолетовый, при выборе - ярко-фиолетовый
         new go.Shape({
-          strokeWidth: 1.8
+          stroke: 'lightgray',
+          strokeWidth: 1.5
         })
-          .bind('stroke', 'isSelected', (sel) => 
-            sel ? '#A855F7' : '#9B7FC9' // ярко-фиолетовый : приглушенный
-          )
-          .bindObject('stroke', 'isSelected', (sel) => 
-            sel ? '#A855F7' : '#9B7FC9' // ярко-фиолетовый : приглушенный
-          ),
-        // Стрелка в конце - того же цвета что и линия
+          .theme('stroke', 'linkStroke')
+          .bindObject('stroke', 'isSelected', (sel) => sel ? 'red' : null),
         new go.Shape({
+          fill: 'lightgray',
+          fromArrow: 'Triangle',
+          stroke: null,
+          strokeWidth: 0
+        }).theme('fill', 'linkStroke'),
+        // Добавляем стрелку на конец связи для указания направления
+        new go.Shape({
+          fill: 'lightgray',
           toArrow: 'Standard',
           stroke: null,
-          scale: 1.0
-        })
-          .bind('fill', 'isSelected', (sel) => 
-            sel ? '#A855F7' : '#9B7FC9' // ярко-фиолетовый : приглушенный
-          )
-          .bindObject('fill', 'isSelected', (sel) => 
-            sel ? '#A855F7' : '#9B7FC9' // ярко-фиолетовый : приглушенный
-          )
+          strokeWidth: 0
+        }).theme('fill', 'linkStroke')
       );
 
       diagram.themeManager.readsCssVariables = true;
@@ -1134,75 +1098,27 @@
         const link = e.subject;
         if (!(link instanceof go.Link)) return;
         
-        const fromNode = link.fromNode;
-        const toNode = link.toNode;
-        
-        if (!fromNode || !toNode) return;
-        
         console.log('Новая связь создана:', {
-          from: fromNode.data?.label,
-          to: toNode.data?.label,
-          fromKey: fromNode.key,
-          toKey: toNode.key
+          from: link.fromNode?.data?.label,
+          to: link.toNode?.data?.label,
+          fromKey: link.fromNode?.key,
+          toKey: link.toNode?.key
         });
         
-        // Получаем текущий JSON объект
-        const currentData = dataManager.toObject() as any;
-        
-        // Создаем массив связей если его еще нет
-        if (!currentData.nodeLinks) {
-          currentData.nodeLinks = [];
-        }
-        
-        // Добавляем новую связь
-        currentData.nodeLinks.push({
-          from: fromNode.key,
-          to: toNode.key,
-          fromLabel: fromNode.data?.label,
-          toLabel: toNode.data?.label
-        });
-        
-        // Обновляем dataManager
-        dataManager.updateDataFromObject(currentData, undefined, 'link-created');
+        // Здесь можно добавить логику сохранения связи в dataManager, если нужно
       });
 
       // Обработчик удаления связей
       diagram.addDiagramListener('SelectionDeleted', e => {
-        const deletedLinks: any[] = [];
-        
         e.subject.each((part: go.Part) => {
           if (part instanceof go.Link) {
             console.log('Связь удалена:', {
               from: part.data?.from,
               to: part.data?.to
             });
-            
-            deletedLinks.push({
-              from: part.data?.from,
-              to: part.data?.to
-            });
+            // Здесь можно добавить логику обновления dataManager, если нужно
           }
         });
-        
-        if (deletedLinks.length > 0) {
-          // Получаем текущий JSON объект
-          const currentData = dataManager.toObject() as any;
-          
-          if (currentData.nodeLinks) {
-            // Удаляем связи из массива
-            currentData.nodeLinks = currentData.nodeLinks.filter((link: any) => {
-              return !deletedLinks.some(dl => dl.from === link.from && dl.to === link.to);
-            });
-            
-            // Если массив связей пустой, удаляем его
-            if (currentData.nodeLinks.length === 0) {
-              delete currentData.nodeLinks;
-            }
-            
-            // Обновляем dataManager
-            dataManager.updateDataFromObject(currentData, undefined, 'link-deleted');
-          }
-        }
       });
 
       dataUnsub = dataManager.subscribe((pairs, keys) => {
